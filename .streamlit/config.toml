@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#F6A716"           # Gold/Yellow
+backgroundColor = "#FFFFFF"         # White
+secondaryBackgroundColor = "#BFCBDA" # Light gray-blue
+textColor = "#00306B"               # Deep blue
+font = "sans serif" 
