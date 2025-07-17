@@ -66,29 +66,72 @@ def login_form() -> bool:
             st.error("Invalid username or password.")
     return False
 
-def top_nav():
+def sidebar_nav():
+    # Custom sidebar styling
+    st.markdown(f"""
+        <style>
+        [data-testid="stSidebar"] {{
+            background-color: {BG_COLOR} !important;
+            color: {TEXT_COLOR} !important;
+            border-top-right-radius: 18px;
+            border-bottom-right-radius: 18px;
+            min-width: 270px;
+        }}
+        [data-testid="stSidebar"] .stRadio > div {{
+            color: {TEXT_COLOR} !important;
+        }}
+        [data-testid="stSidebar"] .stRadio label span {{
+            color: {ACCENT_COLOR} !important;
+            font-weight: 600;
+            font-size: 1.08rem;
+        }}
+        [data-testid="stSidebar"] .stRadio label div[data-testid="stMarkdownContainer"] {{
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }}
+        [data-testid="stSidebar"] img {{
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 0.5em;
+        }}
+        [data-testid="stSidebar"] h2 {{
+            text-align: center;
+            margin-top: 0.2em;
+            margin-bottom: 1.2em;
+            color: {ACCENT_COLOR};
+            font-size: 1.5rem;
+            font-weight: bold;
+            letter-spacing: 0.02em;
+        }}
+        [data-testid="stSidebar"] hr {{
+            border: 1px solid {BORDER_COLOR};
+            margin: 1.2em 0 0.7em 0;
+        }}
+        </style>
+    """, unsafe_allow_html=True)
     nav_items = [
         'Dashboard', 'Job Logs', 'Upload Data', 'Download Reports', 'Users', 'Analytics', 'Error Logs', 'Settings', 'Logout'
     ]
     nav_icons = NAV_ICONS
     nav_labels = [f"{icon} {item}" for icon, item in zip(nav_icons, nav_items)]
-    # Adjust column ratio for better balance
-    cols = st.columns([1, 7])
-    with cols[0]:
-        if os.path.exists(LOGO_PATH):
-            # Use st.image for correct file serving
-            st.image(LOGO_PATH, width=150)
-        else:
-            st.warning(f"Logo not found at: {LOGO_PATH}")
-    with cols[1]:
-        selected = st.radio(
-            '', nav_labels,
-            index=nav_items.index(st.session_state.get('active_tab', 'Dashboard')),
-            horizontal=True,
-            key='nav_radio',
-            label_visibility='collapsed'
-        )
-        st.session_state['active_tab'] = nav_items[nav_labels.index(selected)]
+    st.sidebar.image(LOGO_PATH, width=120)
+    st.sidebar.markdown(f"<h2 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Menu</h2>", unsafe_allow_html=True)
+    selected = st.sidebar.radio(
+        'Navigation', nav_labels,
+        index=nav_items.index(st.session_state.get('active_tab', 'Dashboard')),
+        key='nav_radio_sidebar',
+        label_visibility='collapsed'
+    )
+    st.session_state['active_tab'] = nav_items[nav_labels.index(selected)]
+    # Move upload button to sidebar
+    if st.session_state['active_tab'] == 'Dashboard':
+        st.sidebar.markdown(f"<b>Quick Upload</b>", unsafe_allow_html=True)
+        uploaded_file = st.sidebar.file_uploader("Upload Job Log File", type=["xlsx", "xls", "csv"], key="sidebar_upload")
+        if uploaded_file is not None:
+            st.session_state['sidebar_uploaded_file'] = uploaded_file
+            st.sidebar.success("File uploaded! Go to 'Upload Data' to process.")
 
 def main():
     st.set_page_config(page_title=APP_NAME, layout="wide")
@@ -100,8 +143,8 @@ def main():
         login_form()
         return
     st.markdown(f"<style>body {{ background: {BG_COLOR}; color: {TEXT_COLOR}; }}</style>", unsafe_allow_html=True)
-    # --- Top Navigation ---
-    top_nav()
+    # --- Sidebar Navigation ---
+    sidebar_nav()
     # --- Page Routing ---
     page_map = {
         'Dashboard': dashboard_page,
@@ -131,7 +174,19 @@ def dashboard_page():
         with col:
             st.markdown(f"<div style='background:{PRIMARY_COLOR};color:#fff;padding:1.2rem 1rem 0.7rem 1rem;border-radius:12px;box-shadow:0 2px 8px #0002;'><h2 style='margin:0;'>{value}</h2><div style='font-weight:600;'>{label}</div><div style='color:{color};font-size:0.9rem;font-weight:600;'>{change}</div></div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1.5rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-bottom:1.5rem;'><h3 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Quick Actions</h3><div style='color:#222;'>Common tasks and operations</div><div style='display:flex;gap:2rem;margin-top:1rem;'><button style='background:{PRIMARY_COLOR};color:#fff;padding:0.7rem 2rem;border:none;border-radius:8px;font-weight:bold;font-size:1rem;cursor:pointer;'>⬆ Upload Job Log File</button><button style='background:#E6EEF7;color:{PRIMARY_COLOR};padding:0.7rem 2rem;border:none;border-radius:8px;font-weight:bold;font-size:1rem;cursor:pointer;'>👁 View Analytics</button></div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1.5rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-bottom:1.5rem;'>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Quick Actions</h3>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color:#222;'>Common tasks and operations</div>", unsafe_allow_html=True)
+    # Upload button as file uploader
+    upload_col, analytics_col = st.columns([1,1])
+    with upload_col:
+        uploaded_file = st.file_uploader("Upload Job Log File", type=["xlsx", "xls", "csv"], key="dashboard_upload")
+        if uploaded_file is not None:
+            st.session_state['sidebar_uploaded_file'] = uploaded_file
+            st.success("File uploaded! Go to 'Upload Data' to process.")
+    with analytics_col:
+        st.button("👁 View Analytics", key="dashboard_view_analytics", disabled=True)
+    st.markdown("</div>", unsafe_allow_html=True)
     col5, col6 = st.columns(2)
     with col5:
         st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Recent Activity</h4><div style='color:#555;'>Latest updates and system events</div><ul style='color:{TEXT_COLOR};margin-top:1rem;'><li>Job log JL-2024-001 uploaded by Mike Johnson</li><li>Supervisor Sarah Williams completed review</li><li>System backup completed</li><li>New user Robert Chen added</li></ul></div>", unsafe_allow_html=True)
@@ -175,7 +230,7 @@ def joblogs_page():
 def upload_page():
     st.title("Upload Data")
     st.write("Import Excel sheets containing job logs and supervisor data.")
-    uploaded_file = st.file_uploader("Click to upload files or drag and drop", type=["xlsx", "xls", "csv"], key="upload_data_file")
+    uploaded_file = st.session_state.get('sidebar_uploaded_file', None)
     st.session_state['sheet_data'] = None
     st.session_state['sheet_name'] = None
     st.session_state['sheet_fields'] = None
@@ -184,41 +239,57 @@ def upload_page():
         "Materials Used", "Tools Used", "Observations", "Status"
     ]
     upload_error = None
+    all_sheets_data = []
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith("csv"):
                 df = pd.read_csv(uploaded_file)
-                st.session_state['sheet_data'] = df
-                st.session_state['sheet_name'] = 'CSV File'
-                st.session_state['sheet_fields'] = list(df.columns)
-                st.success("CSV file uploaded successfully!")
+                # Filter out columns with all NaN or empty
+                df = df.dropna(axis=1, how='all')
+                df = df.loc[:, df.notna().any()]
+                all_sheets_data.append(("CSV File", df))
+                st.success("CSV file uploaded and processed!")
             else:
                 xls = pd.ExcelFile(uploaded_file)
-                sheet_names = xls.sheet_names
-                sheet = st.selectbox("Select sheet to analyze", sheet_names, key="sheet_select")
-                raw_df = xls.parse(sheet, header=None)
-                # Try to find the first row with at least 3 non-null values as header
-                header_row = None
-                for i, row in raw_df.iterrows():
-                    if row.count() >= 3:
-                        header_row = i
-                        break
-                if header_row is not None:
-                    df = pd.read_excel(uploaded_file, sheet_name=sheet, header=header_row)
-                    st.session_state['sheet_data'] = df
-                    st.session_state['sheet_name'] = sheet
-                    st.session_state['sheet_fields'] = list(df.columns)
-                    st.success(f"Sheet '{sheet}' loaded successfully! Header row: {header_row+1}")
-                    st.dataframe(df.head(20), use_container_width=True)
-                else:
-                    upload_error = "Could not automatically detect the data table in this sheet."
-                    st.error(upload_error)
+                for sheet in xls.sheet_names:
+                    raw_df = xls.parse(sheet, header=None)
+                    header_row = None
+                    for i, row in raw_df.iterrows():
+                        if row.count() >= 3:
+                            header_row = i
+                            break
+                    if header_row is not None:
+                        df = pd.read_excel(uploaded_file, sheet_name=sheet, header=header_row)
+                        # Filter out columns with all NaN or empty
+                        df = df.dropna(axis=1, how='all')
+                        df = df.loc[:, df.notna().any()]
+                        all_sheets_data.append((sheet, df))
+                    else:
+                        st.warning(f"Could not detect data table in sheet: {sheet}")
+                if all_sheets_data:
+                    st.success(f"Processed {len(all_sheets_data)} sheet(s)!")
+            # Store the first sheet for analytics
+            if all_sheets_data:
+                st.session_state['sheet_data'] = all_sheets_data[0][1]
+                st.session_state['sheet_name'] = all_sheets_data[0][0]
+                st.session_state['sheet_fields'] = list(all_sheets_data[0][1].columns)
+            # Scorecard style summary for each sheet
+            for sheet, df in all_sheets_data:
+                st.markdown(f"<h4 style='color:{ACCENT_COLOR};margin-top:1.5rem;'>Sheet: {sheet}</h4>", unsafe_allow_html=True)
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Rows", len(df))
+                with col2:
+                    st.metric("Columns", len(df.columns))
+                with col3:
+                    st.metric("Filled Cells", int(df.count().sum()))
+                with col4:
+                    st.metric("Blank Cells", int(df.isna().sum().sum()))
         except Exception as e:
             upload_error = str(e)
             st.error(f"Error reading file: {e}")
     else:
         st.info("No file uploaded. Please upload an Excel or CSV file.")
-    # Remove HTML line for required columns, just show as text
     st.info("Required Excel columns (for full job log analytics): " + ', '.join(required_cols))
     if upload_error:
         if 'error_logs' not in st.session_state:
@@ -292,81 +363,51 @@ def analytics_page():
     import altair as alt
     st.title("Analytics")
     st.write("Performance insights and operational analytics.")
-    df = st.session_state.get('sheet_data', None)
-    sheet_name = st.session_state.get('sheet_name', None)
-    fields = st.session_state.get('sheet_fields', None)
-    if df is not None and fields is not None:
-        st.subheader(f"Analytics from {sheet_name}")
-        # Clean up field names for selection, skip all-NaN or single-unique columns
-        clean_fields = [str(f).strip() for f in fields if df[f].dropna().nunique() > 1]
-        if not clean_fields:
-            st.warning("No suitable fields for analytics in this sheet.")
-            return
-        selected_field = st.selectbox("Select field for analytics", clean_fields, key="analytics_field")
-        if selected_field:
-            col_data = df[selected_field].dropna()
-            st.write(f"**Field type:** {col_data.dtype}")
-            try:
-                # Numeric: summary, bar, line
-                if pd.api.types.is_numeric_dtype(col_data):
-                    st.write("**Summary statistics:**")
-                    st.write(col_data.describe())
-                    chart_data = col_data.value_counts().reset_index()
-                    chart_data.columns = ["Value", "Count"]
-                    if len(chart_data) > 1:
-                        bar = alt.Chart(chart_data).mark_bar().encode(
-                            x=alt.X("Value:O", title=selected_field),
-                            y=alt.Y("Count:Q"),
-                            tooltip=["Value", "Count"]
-                        )
-                        st.altair_chart(bar, use_container_width=True)
-                    else:
-                        st.info("Not enough data for a bar chart.")
-                # Categorical: bar, pie
-                elif pd.api.types.is_object_dtype(col_data) or pd.api.types.is_categorical_dtype(col_data):
-                    value_counts = col_data.value_counts().head(20)
-                    st.write("**Top 20 value counts:**")
-                    st.dataframe(value_counts)
-                    chart_data = value_counts.reset_index()
-                    chart_data.columns = ["Category", "Count"]
-                    if len(chart_data) > 1:
-                        bar = alt.Chart(chart_data).mark_bar().encode(
-                            x=alt.X("Category:N", sort="-y"),
-                            y=alt.Y("Count:Q"),
-                            tooltip=["Category", "Count"]
-                        )
-                        st.altair_chart(bar, use_container_width=True)
-                        pie = alt.Chart(chart_data).mark_arc().encode(
-                            theta=alt.Theta(field="Count", type="quantitative"),
-                            color=alt.Color(field="Category", type="nominal"),
-                            tooltip=["Category", "Count"]
-                        )
-                        st.altair_chart(pie, use_container_width=True)
-                    else:
-                        st.info("Not enough data for a chart.")
-                # Datetime: time series
-                elif pd.api.types.is_datetime64_any_dtype(col_data):
-                    st.write("**Time series:**")
-                    ts = col_data.value_counts().sort_index().reset_index()
-                    ts.columns = ["Date", "Count"]
-                    if len(ts) > 1:
-                        line = alt.Chart(ts).mark_line().encode(
-                            x=alt.X("Date:T"),
-                            y=alt.Y("Count:Q"),
-                            tooltip=["Date", "Count"]
-                        )
-                        st.altair_chart(line, use_container_width=True)
-                    else:
-                        st.info("Not enough data for a time series chart.")
-                else:
-                    st.warning("This field type is not directly visualizable. Please select another field.")
-            except Exception as e:
-                st.warning(f"Could not plot chart for this field: {e}")
-        st.markdown("---")
-        st.markdown("**Preview of data used for analytics:**")
-        st.dataframe(df.head(20), use_container_width=True)
-    else:
-        st.info("Upload a data file and select a sheet to see analytics.")
+    # Hardcoded/random data for analytics
+    import random
+    metrics = [
+        ("Total Jobs", random.randint(1000, 2000)),
+        ("Active Supervisors", random.randint(20, 40)),
+        ("Pending Reviews", random.randint(10, 60)),
+        ("Completed Jobs", random.randint(800, 1200)),
+        ("Avg. Job Duration (hrs)", round(random.uniform(5, 12), 1)),
+        ("Material Usage (tons)", round(random.uniform(100, 500), 1)),
+        ("Error Rate (%)", round(random.uniform(0.5, 5.0), 2)),
+        ("Jobs This Month", random.randint(50, 150)),
+    ]
+    # Scorecard style
+    cols = st.columns(4)
+    for i, (label, value) in enumerate(metrics):
+        with cols[i % 4]:
+            st.markdown(f"<div style='background:{PRIMARY_COLOR};color:#fff;padding:1.2rem 1rem 0.7rem 1rem;border-radius:12px;box-shadow:0 2px 8px #0002;'><h2 style='margin:0;'>{value}</h2><div style='font-weight:600;'>{label}</div></div>", unsafe_allow_html=True)
+    # Add vertical space after scorecards
+    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
+    # Example bar chart with random data
+    chart_data = pd.DataFrame({
+        'Supervisor': [f"Sup {i+1}" for i in range(6)],
+        'Jobs Completed': [random.randint(10, 100) for _ in range(6)]
+    })
+    st.subheader("Jobs Completed by Supervisor")
+    bar = alt.Chart(chart_data).mark_bar().encode(
+        x=alt.X("Supervisor:N"),
+        y=alt.Y("Jobs Completed:Q"),
+        tooltip=["Supervisor", "Jobs Completed"]
+    )
+    st.altair_chart(bar, use_container_width=True)
+    # Add vertical space after bar chart
+    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
+    # Example pie chart with random data
+    pie_data = pd.DataFrame({
+        'Status': ['Completed', 'In Progress', 'Under Review'],
+        'Count': [random.randint(50, 200) for _ in range(3)]
+    })
+    st.subheader("Job Status Distribution")
+    pie = alt.Chart(pie_data).mark_arc().encode(
+        theta=alt.Theta(field="Count", type="quantitative"),
+        color=alt.Color(field="Status", type="nominal"),
+        tooltip=["Status", "Count"]
+    )
+    st.altair_chart(pie, use_container_width=True)
 
 def errorlogs_page():
     st.title("Error Logs")
