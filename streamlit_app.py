@@ -27,7 +27,7 @@ APP_SUBTITLE = 'Oil Well Management System'
 
 # --- NAVIGATION ICONS ---
 NAV_ICONS = [
-    '🏠', '📄', '⬆️', '⬇️', '👤', '📊', '⚠️', '⚙️', '🚪'
+    '🏠', '📄', '⬆️', '👤', '📊', '⚙️', '🚪'
 ]
 
 # --- SETTINGS STATE ---
@@ -112,7 +112,7 @@ def sidebar_nav():
         </style>
     """, unsafe_allow_html=True)
     nav_items = [
-        'Dashboard', 'Job Logs', 'Upload Data', 'Download Reports', 'Users', 'Analytics', 'Error Logs', 'Settings', 'Logout'
+        'Dashboard', 'Job Logs', 'Upload Data', 'Users', 'Analytics', 'Settings', 'Logout'
     ]
     nav_icons = NAV_ICONS
     nav_labels = [f"{icon} {item}" for icon, item in zip(nav_icons, nav_items)]
@@ -150,10 +150,8 @@ def main():
         'Dashboard': dashboard_page,
         'Job Logs': joblogs_page,
         'Upload Data': upload_page,
-        'Download Reports': download_page,
         'Users': users_page,
         'Analytics': analytics_page,
-        'Error Logs': errorlogs_page,
         'Settings': settings_page,
         'Logout': logout_page
     }
@@ -235,16 +233,23 @@ def upload_page():
     st.session_state['sheet_name'] = None
     st.session_state['sheet_fields'] = None
     required_cols = [
-        "Customer Name", "State", "Zip Code", "Supervisor Name", "Well Name", "Date",
-        "Materials Used", "Tools Used", "Observations", "Status"
+        # Header fields (exact as in images)
+        "Job Type:", "Start Date:", "End Date:", "FTS", "Ticket #:", "Co Rep:", "Co Rep Ph:",
+        "Customer:", "Lease/Well#:", "Field/Block#:", "State:", "County:", "Rig:", "Casing:",
+        "Motor Type:", "Motor Size:", "Mill Type:", "Mill Dressing:", "Extended Reach Tool:", "TOTAL # OF RUNS:",
+        # Table columns (exact as in image)
+        "Plug/Seat No.", "Tag Time", "Tag Plug/Seat Depth", "Drill Time (mins)", "Actual Plug/Seat Set Depth",
+        "Plug/Seat Depth Difference", "Free Swivel Torque", "Circ. Pressure (PSI)", "Wellhead Pressure (PSI)",
+        "Pump Rate (BPM)", "Return Rate (BPM)", "N2 Pump Rate (scfm)", "Weight on Bit", "Run In Weight (lbs)",
+        "Pick Up Weight (lbs)", "RPMS", "Tag Joint Number", "Comments  (Motor Serial #, Sweep bbls, etc...)"
     ]
     upload_error = None
     all_sheets_data = []
+    missing_required = []
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith("csv"):
                 df = pd.read_csv(uploaded_file)
-                # Filter out columns with all NaN or empty
                 df = df.dropna(axis=1, how='all')
                 df = df.loc[:, df.notna().any()]
                 all_sheets_data.append(("CSV File", df))
@@ -260,7 +265,6 @@ def upload_page():
                             break
                     if header_row is not None:
                         df = pd.read_excel(uploaded_file, sheet_name=sheet, header=header_row)
-                        # Filter out columns with all NaN or empty
                         df = df.dropna(axis=1, how='all')
                         df = df.loc[:, df.notna().any()]
                         all_sheets_data.append((sheet, df))
@@ -273,6 +277,10 @@ def upload_page():
                 st.session_state['sheet_data'] = all_sheets_data[0][1]
                 st.session_state['sheet_name'] = all_sheets_data[0][0]
                 st.session_state['sheet_fields'] = list(all_sheets_data[0][1].columns)
+                # Check for missing required columns
+                missing_required = [col for col in required_cols if col not in all_sheets_data[0][1].columns]
+                if missing_required:
+                    st.error(f"Missing required columns: {', '.join(missing_required)}")
             # Scorecard style summary for each sheet
             for sheet, df in all_sheets_data:
                 st.markdown(f"<h4 style='color:{ACCENT_COLOR};margin-top:1.5rem;'>Sheet: {sheet}</h4>", unsafe_allow_html=True)
@@ -291,46 +299,75 @@ def upload_page():
     else:
         st.info("No file uploaded. Please upload an Excel or CSV file.")
     st.info("Required Excel columns (for full job log analytics): " + ', '.join(required_cols))
-    if upload_error:
-        if 'error_logs' not in st.session_state:
-            st.session_state['error_logs'] = []
-        st.session_state['error_logs'].append({
-            'Error ID': f'ERR-UPLOAD-{len(st.session_state["error_logs"])+1}',
-            'Type': 'High',
-            'Message': upload_error,
-            'Date': pd.Timestamp.now().strftime('%Y-%m-%d'),
-            'Status': 'Open'
-        })
 
-def download_page():
-    st.title("Download Reports")
-    st.write("Generate and download comprehensive reports.")
-    from datetime import date
-    report_data = {
-        "Job ID": ["JL-2024-001", "JL-2024-002"],
-        "Customer": ["Texas Oil Corporation", "Gulf Coast Energy"],
-        "Supervisor": ["Mike Johnson", "Sarah Williams"],
-        "Status": ["Completed", "In Progress"],
-        "Date": ["2024-01-15", "2024-01-14"]
-    }
-    df = pd.DataFrame(report_data)
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input("Start Date", value=date(2024, 1, 1), key="report_start_date")
-    with col2:
-        end_date = st.date_input("End Date", value=date(2024, 1, 31), key="report_end_date")
-    report_type = st.selectbox("Select Report Type", ["Job Summary", "Supervisor Performance", "Material Usage"], key="report_type")
-    filtered_df = df[(df["Date"] >= str(start_date)) & (df["Date"] <= str(end_date))]
-    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-top:1rem;'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Report Preview</h4>", unsafe_allow_html=True)
-    st.dataframe(filtered_df, use_container_width=True)
-    st.markdown("<b>Download as:</b>", unsafe_allow_html=True)
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        st.download_button("Excel", filtered_df.to_csv(index=False).encode(), file_name="report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_excel")
-    with col4:
-        st.download_button("CSV", filtered_df.to_csv(index=False).encode(), file_name="report.csv", mime="text/csv", key="download_csv")
-    with col5:
-        st.button("PDF (coming soon)", key="download_pdf", disabled=True)
+def analytics_page():
+    import altair as alt
+    st.title("Analytics")
+    st.write("Performance insights and operational analytics.")
+    # Overall project metrics only
+    import random
+    metrics = [
+        ("Total Jobs", random.randint(1000, 2000)),
+        ("Completed Jobs", random.randint(800, 1200)),
+        ("Error Rate (%)", round(random.uniform(0.5, 5.0), 2)),
+        ("Jobs This Month", random.randint(50, 150)),
+    ]
+    cols = st.columns(4)
+    for i, (label, value) in enumerate(metrics):
+        with cols[i % 4]:
+            st.markdown(f"<div style='background:{PRIMARY_COLOR};color:#fff;padding:1.2rem 1rem 0.7rem 1rem;border-radius:12px;box-shadow:0 2px 8px #0002;'><h2 style='margin:0;'>{value}</h2><div style='font-weight:600;'>{label}</div></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
+    # Example bar chart with random data (overall jobs by month)
+    chart_data = pd.DataFrame({
+        'Month': [f"2024-{i+1:02d}" for i in range(6)],
+        'Jobs Completed': [random.randint(50, 200) for _ in range(6)]
+    })
+    st.subheader("Jobs Completed by Month")
+    bar = alt.Chart(chart_data).mark_bar().encode(
+        x=alt.X("Month:N"),
+        y=alt.Y("Jobs Completed:Q"),
+        tooltip=["Month", "Jobs Completed"]
+    )
+    st.altair_chart(bar, use_container_width=True)
+    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
+    # Download overall report
+    st.markdown("<b>Download Overall Report:</b>", unsafe_allow_html=True)
+    st.download_button("Download CSV", chart_data.to_csv(index=False).encode(), file_name="overall_report.csv", mime="text/csv", key="download_overall_csv")
+
+def settings_page():
+    st.title("Settings")
+    st.write("Configure application settings and preferences.")
+    settings = get_settings()
+    with st.form("settings_form"):
+        theme = st.selectbox("Theme", ["Dark", "Light"], index=0 if settings['Theme']=="Dark" else 1)
+        language = st.selectbox("Language", ["English", "Spanish"], index=0 if settings['Language']=="English" else 1)
+        notifications = st.checkbox("Enable Notifications", value=settings['Notifications'])
+        autosave = st.checkbox("Enable Auto-save", value=settings['Auto-save'])
+        submitted = st.form_submit_button("Save Settings")
+        if submitted:
+            settings['Theme'] = theme
+            settings['Language'] = language
+            settings['Notifications'] = notifications
+            settings['Auto-save'] = autosave
+            st.session_state['settings'] = settings
+            st.success("Settings updated!")
+    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-top:1rem;'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Current Settings</h4>", unsafe_allow_html=True)
+    st.json(settings)
+    st.markdown(f"<h4 style='color:{ACCENT_COLOR};'>Change Password</h4>", unsafe_allow_html=True)
+    with st.form("change_password_form"):
+        current_password = st.text_input("Current Password", type="password", key="current_password")
+        new_password = st.text_input("New Password", type="password", key="new_password")
+        confirm_password = st.text_input("Confirm New Password", type="password", key="confirm_password")
+        submitted = st.form_submit_button("Change Password")
+        if submitted:
+            if current_password == USERS[st.session_state["username"]]:
+                if new_password == confirm_password:
+                    USERS[st.session_state["username"]] = new_password
+                    st.success("Password changed successfully!")
+                else:
+                    st.error("New passwords do not match.")
+            else:
+                st.error("Incorrect current password.")
 
 def users_page():
     st.title("User Management")
@@ -358,128 +395,6 @@ def users_page():
         submitted = st.form_submit_button("Add User")
         if submitted:
             st.success(f"User '{new_username}' added (not saved in prototype)")
-
-def analytics_page():
-    import altair as alt
-    st.title("Analytics")
-    st.write("Performance insights and operational analytics.")
-    # Hardcoded/random data for analytics
-    import random
-    metrics = [
-        ("Total Jobs", random.randint(1000, 2000)),
-        ("Active Supervisors", random.randint(20, 40)),
-        ("Pending Reviews", random.randint(10, 60)),
-        ("Completed Jobs", random.randint(800, 1200)),
-        ("Avg. Job Duration (hrs)", round(random.uniform(5, 12), 1)),
-        ("Material Usage (tons)", round(random.uniform(100, 500), 1)),
-        ("Error Rate (%)", round(random.uniform(0.5, 5.0), 2)),
-        ("Jobs This Month", random.randint(50, 150)),
-    ]
-    # Scorecard style
-    cols = st.columns(4)
-    for i, (label, value) in enumerate(metrics):
-        with cols[i % 4]:
-            st.markdown(f"<div style='background:{PRIMARY_COLOR};color:#fff;padding:1.2rem 1rem 0.7rem 1rem;border-radius:12px;box-shadow:0 2px 8px #0002;'><h2 style='margin:0;'>{value}</h2><div style='font-weight:600;'>{label}</div></div>", unsafe_allow_html=True)
-    # Add vertical space after scorecards
-    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
-    # Example bar chart with random data
-    chart_data = pd.DataFrame({
-        'Supervisor': [f"Sup {i+1}" for i in range(6)],
-        'Jobs Completed': [random.randint(10, 100) for _ in range(6)]
-    })
-    st.subheader("Jobs Completed by Supervisor")
-    bar = alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X("Supervisor:N"),
-        y=alt.Y("Jobs Completed:Q"),
-        tooltip=["Supervisor", "Jobs Completed"]
-    )
-    st.altair_chart(bar, use_container_width=True)
-    # Add vertical space after bar chart
-    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
-    # Example pie chart with random data
-    pie_data = pd.DataFrame({
-        'Status': ['Completed', 'In Progress', 'Under Review'],
-        'Count': [random.randint(50, 200) for _ in range(3)]
-    })
-    st.subheader("Job Status Distribution")
-    pie = alt.Chart(pie_data).mark_arc().encode(
-        theta=alt.Theta(field="Count", type="quantitative"),
-        color=alt.Color(field="Status", type="nominal"),
-        tooltip=["Status", "Count"]
-    )
-    st.altair_chart(pie, use_container_width=True)
-
-def errorlogs_page():
-    st.title("Error Logs")
-    st.write("View and manage system error logs.")
-    # Use error logs from session state if available
-    error_logs = st.session_state.get('error_logs', [])
-    error_data = {
-        "Error ID": [e['Error ID'] for e in error_logs] if error_logs else ["ERR-2024-001", "ERR-2024-002"],
-        "Type": [e['Type'] for e in error_logs] if error_logs else ["High", "Medium"],
-        "Message": [e['Message'] for e in error_logs] if error_logs else ["Missing supervisor name in row 5 of well_data_batch_12.xlsx", "Invalid zip code format in customer_update_jan15.xlsx"],
-        "Date": [e['Date'] for e in error_logs] if error_logs else ["2024-01-15", "2024-01-14"],
-        "Status": [e['Status'] for e in error_logs] if error_logs else ["Open", "Closed"]
-    }
-    df_errors = pd.DataFrame(error_data)
-    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-top:1rem;'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Error Logs</h4>", unsafe_allow_html=True)
-    st.dataframe(df_errors, use_container_width=True)
-    st.markdown("<hr>")
-    st.markdown(f"<h4 style='color:{ACCENT_COLOR};'>Add New Error</h4>", unsafe_allow_html=True)
-    with st.form("add_error_form"):
-        new_error_id = st.text_input("Error ID", key="add_error_id")
-        new_error_type = st.selectbox("Type", ["High", "Medium", "Low"], key="add_error_type")
-        new_error_message = st.text_area("Message", key="add_error_message")
-        new_error_date = st.date_input("Date", key="add_error_date")
-        new_error_status = st.selectbox("Status", ["Open", "Closed"], key="add_error_status")
-        submitted = st.form_submit_button("Add Error")
-        if submitted:
-            if 'error_logs' not in st.session_state:
-                st.session_state['error_logs'] = []
-            st.session_state['error_logs'].append({
-                'Error ID': new_error_id,
-                'Type': new_error_type,
-                'Message': new_error_message,
-                'Date': str(new_error_date),
-                'Status': new_error_status
-            })
-            st.success(f"Error '{new_error_id}' added (not saved in prototype)")
-
-def settings_page():
-    st.title("Settings")
-    st.write("Configure application settings and preferences.")
-    settings = get_settings()
-    with st.form("settings_form"):
-        theme = st.selectbox("Theme", ["Dark", "Light"], index=0 if settings['Theme']=="Dark" else 1)
-        language = st.selectbox("Language", ["English", "Spanish"], index=0 if settings['Language']=="English" else 1)
-        notifications = st.checkbox("Enable Notifications", value=settings['Notifications'])
-        autosave = st.checkbox("Enable Auto-save", value=settings['Auto-save'])
-        submitted = st.form_submit_button("Save Settings")
-        if submitted:
-            settings['Theme'] = theme
-            settings['Language'] = language
-            settings['Notifications'] = notifications
-            settings['Auto-save'] = autosave
-            st.session_state['settings'] = settings
-            st.success("Settings updated!")
-    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-top:1rem;'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Current Settings</h4>", unsafe_allow_html=True)
-    st.json(settings)
-    st.markdown("<hr>")
-    st.markdown(f"<h4 style='color:{ACCENT_COLOR};'>Change Password</h4>", unsafe_allow_html=True)
-    with st.form("change_password_form"):
-        current_password = st.text_input("Current Password", type="password", key="current_password")
-        new_password = st.text_input("New Password", type="password", key="new_password")
-        confirm_password = st.text_input("Confirm New Password", type="password", key="confirm_password")
-        submitted = st.form_submit_button("Change Password")
-        if submitted:
-            if current_password == USERS[st.session_state["username"]]:
-                if new_password == confirm_password:
-                    USERS[st.session_state["username"]] = new_password
-                    st.success("Password changed successfully!")
-                else:
-                    st.error("New passwords do not match.")
-            else:
-                st.error("Incorrect current password.")
 
 def logout_page():
     st.title("Logout")
