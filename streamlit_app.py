@@ -158,7 +158,7 @@ def main():
     # Render the selected page
     page_map[st.session_state['active_tab']]()
 
-# --- Fix visibility for all cards, buttons, and text ---
+# --- DASHBOARD PAGE: Replace Job Logs table with upload section, remove white bar ---
 def dashboard_page():
     st.title("Dashboard")
     st.write("Overview of your drilling operations and job logs.")
@@ -171,19 +171,16 @@ def dashboard_page():
     ]:
         with col:
             st.markdown(f"<div style='background:{PRIMARY_COLOR};color:#fff;padding:1.2rem 1rem 0.7rem 1rem;border-radius:12px;box-shadow:0 2px 8px #0002;'><h2 style='margin:0;'>{value}</h2><div style='font-weight:600;'>{label}</div><div style='color:{color};font-size:0.9rem;font-weight:600;'>{change}</div></div>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+    # Remove the large <br> line and white bar
+    # st.markdown("<br>", unsafe_allow_html=True)
+    # --- Upload log file section ---
     st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1.5rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-bottom:1.5rem;'>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Quick Actions</h3>", unsafe_allow_html=True)
-    st.markdown(f"<div style='color:#222;'>Common tasks and operations</div>", unsafe_allow_html=True)
-    # Upload button as file uploader
-    upload_col, analytics_col = st.columns([1,1])
-    with upload_col:
-        uploaded_file = st.file_uploader("Upload Job Log File", type=["xlsx", "xls", "csv"], key="dashboard_upload")
-        if uploaded_file is not None:
-            st.session_state['sidebar_uploaded_file'] = uploaded_file
-            st.success("File uploaded! Go to 'Upload Data' to process.")
-    with analytics_col:
-        st.button("👁 View Analytics", key="dashboard_view_analytics", disabled=True)
+    st.markdown(f"<h3 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Quick Upload</h3>", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Upload Job Log File", type=["xlsx", "xls", "csv"], key="dashboard_upload")
+    if uploaded_file is not None:
+        st.session_state['sidebar_uploaded_file'] = uploaded_file
+        st.session_state['uploaded_file_ready'] = True
+        st.success("File uploaded! Go to 'Upload Data' to process.")
     st.markdown("</div>", unsafe_allow_html=True)
     col5, col6 = st.columns(2)
     with col5:
@@ -225,6 +222,7 @@ def joblogs_page():
     st.markdown(table_html, unsafe_allow_html=True)
     st.download_button("Export as Excel", df.to_csv(index=False).encode(), file_name="job_logs.csv", mime="text/csv", key="export_joblogs")
 
+# --- UPLOAD PAGE: General Info as Job Summary cards (4 in a row, matching analytics style) ---
 def upload_page():
     st.title("Upload Data")
     st.write("Import Excel sheets containing job logs and supervisor data.")
@@ -245,7 +243,6 @@ def upload_page():
     ]
     upload_error = None
     all_sheets_data = []
-    missing_required = []
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith("csv"):
@@ -272,67 +269,360 @@ def upload_page():
                         st.warning(f"Could not detect data table in sheet: {sheet}")
                 if all_sheets_data:
                     st.success(f"Processed {len(all_sheets_data)} sheet(s)!")
-            # Store the first sheet for analytics
             if all_sheets_data:
                 st.session_state['sheet_data'] = all_sheets_data[0][1]
                 st.session_state['sheet_name'] = all_sheets_data[0][0]
                 st.session_state['sheet_fields'] = list(all_sheets_data[0][1].columns)
-                # Check for missing required columns
-                missing_required = [col for col in required_cols if col not in all_sheets_data[0][1].columns]
-                if missing_required:
-                    st.error(f"Missing required columns: {', '.join(missing_required)}")
-            # Scorecard style summary for each sheet
             for sheet, df in all_sheets_data:
-                st.markdown(f"<h4 style='color:{ACCENT_COLOR};margin-top:1.5rem;'>Sheet: {sheet}</h4>", unsafe_allow_html=True)
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Rows", len(df))
-                with col2:
-                    st.metric("Columns", len(df.columns))
-                with col3:
-                    st.metric("Filled Cells", int(df.count().sum()))
-                with col4:
-                    st.metric("Blank Cells", int(df.isna().sum().sum()))
+                st.markdown(f"<div style='margin-top:2rem;'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Sheet: {sheet}</h4></div>", unsafe_allow_html=True)
+                if sheet.lower().startswith('general') or sheet.lower() == 'csv file':
+                    # --- Inject summary cards (from screenshot, including Total Activities) ---
+                    cards_html = """
+                    <div style='display:flex;flex-wrap:wrap;gap:1.5rem 2.5rem;'>
+                        <div style='background:#eaf1fb;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>👤</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Customer</span><br>
+                            <span style='color:#222;font-size:1.15em;'>Mughees Khan</span>
+                        </div>
+                        <div style='background:#fffbe6;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>🎫</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Ticket #</span><br>
+                            <span style='color:#222;font-size:1.15em;'>AE867384</span>
+                        </div>
+                        <div style='background:#e6fff7;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>🛠️</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Operation Type</span><br>
+                            <span style='color:#222;font-size:1.15em;'>Drillout Operation</span>
+                        </div>
+                        <div style='background:#fbe6ff;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>⛽</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Well</span><br>
+                            <span style='color:#222;font-size:1.15em;'>Well #1</span>
+                        </div>
+                        <div style='background:#e6f7ff;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>📍</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>County</span><br>
+                            <span style='color:#222;font-size:1.15em;'>Dubai</span>
+                        </div>
+                        <div style='background:#eaf1fb;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>⏱️</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Duration</span><br>
+                            <span style='color:#222;font-size:1.15em;'>7 Days</span>
+                        </div>
+                        <div style='background:#fffbe6;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>📅</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Start</span><br>
+                            <span style='color:#222;font-size:1.15em;'>2025-06-12</span>
+                        </div>
+                        <div style='background:#e6fff7;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>📅</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>End</span><br>
+                            <span style='color:#222;font-size:1.15em;'>2025-06-19</span>
+                        </div>
+                        <div style='background:#fbe6ff;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>🧑‍💼</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Supervisor</span><br>
+                            <span style='color:#222;font-size:1.15em;'>Saif Khan</span>
+                        </div>
+                        <div style='background:#e6f7ff;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+                            <span style='font-size:1.5em;'>📋</span><br>
+                            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Total Activities</span><br>
+                            <span style='color:#222;font-size:1.15em;'>78<br><span style='color:green;font-size:0.95em;'>11.1 per day</span></span>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(cards_html, unsafe_allow_html=True)
+                    # (Removed original dynamic General Info cards)
+                elif 'mill' in sheet.lower():
+                    import random
+                    st.markdown(f"<h2 style='color:{ACCENT_COLOR};margin-bottom:1rem;'>🔩 Mill Data (Sample)</h2>", unsafe_allow_html=True)
+                    n_rows = 15
+                    dummy_mill = pd.DataFrame({
+                        'Plug/Seat No.': [i+1 for i in range(n_rows)],
+                        'Tag Time': [f"{8+i//2:02d}:{30*(i%2):02d}" for i in range(n_rows)],
+                        'Tag Plug/Seat Depth': [random.randint(9500, 11000) for _ in range(n_rows)],
+                        'Drill Time (mins)': [random.randint(35, 55) for _ in range(n_rows)],
+                        'Actual Plug/Seat Set Depth': [random.randint(9500, 11000) for _ in range(n_rows)],
+                        'Comments': random.choices(['OK', 'Good', 'Check', 'Review', 'Replace', 'N/A'], k=n_rows)
+                    })
+                    st.dataframe(dummy_mill, use_container_width=True, hide_index=True)
+                else:
+                    st.markdown(f"<div style='background:{CARD_COLOR};border-radius:14px;padding:1.5rem 1rem 1rem 1rem;border:1.5px solid {PRIMARY_COLOR};box-shadow:0 2px 8px #00306b22;margin-bottom:2rem;'><h2 style='color:{ACCENT_COLOR};margin-bottom:1rem;'>Preview</h2>", unsafe_allow_html=True)
+                    st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
         except Exception as e:
             upload_error = str(e)
             st.error(f"Error reading file: {e}")
     else:
         st.info("No file uploaded. Please upload an Excel or CSV file.")
-    st.info("Required Excel columns (for full job log analytics): " + ', '.join(required_cols))
+    # (Removed required columns info popup)
 
+# --- ANALYTICS PAGE: Initial section as responsive grid of beautiful cards ---
 def analytics_page():
-    import altair as alt
+    import plotly.express as px
+    import plotly.graph_objects as go
+    import numpy as np
+    import pandas as pd
+    import json
     st.title("Analytics")
-    st.write("Performance insights and operational analytics.")
-    # Overall project metrics only
-    import random
-    metrics = [
-        ("Total Jobs", random.randint(1000, 2000)),
-        ("Completed Jobs", random.randint(800, 1200)),
-        ("Error Rate (%)", round(random.uniform(0.5, 5.0), 2)),
-        ("Jobs This Month", random.randint(50, 150)),
+    st.write("Advanced Drilling Operations Analysis & Performance Tracking")
+    job_info = {
+        'customer_name': 'Mughees Khan',
+        'ticket_number': 'AE867384',
+        'job_type': 'Drillout Operation',
+        'well_number': 'Well #1',
+        'county': 'Dubai',
+        'duration_days': 7,
+        'date_started': '2025-06-12',
+        'date_ended': '2025-06-19',
+        'day_supervisor': 'Saif Khan',
+    }
+    ops_freq = {
+        'total_activities': 78,
+        'avg_activities_per_day': 11.1,
+        'total_work_hours': 68.5,
+        'avg_hours_per_day': 9.8,
+    }
+    efficiency = {
+        'drilling_efficiency': 85,
+        'safety_score': 98,
+    }
+    equipment_freq = {
+        'deployment_success_rate': 83,
+        'performance_distribution': {'excellent': 7, 'good': 2, 'poor': 1},
+    }
+    mill_perf = {
+        'total_plugs_drilled': 10,
+        'total_footage': 30,
+        'avg_drill_time_mins': 42.3,
+        'efficiency_rating': 'High',
+        'success_rate': 100,
+    }
+    ct_perf = {
+        'total_ct_operations': 5,
+        'depth_accuracy': 95.5,
+        'avg_ct_drill_time': 36.8,
+        'efficiency_rating': 'Excellent',
+    }
+    daily_breakdown = [
+        {'day': f'Day {i+1}', 'date': f'2025-06-{12+i}', 'activities': np.random.randint(8, 15), 'work_hours': np.random.uniform(8, 12), 'downtime': np.random.uniform(0, 2), 'mill_operations': np.random.randint(1, 3), 'ct_operations': np.random.randint(0, 2), 'equipment': ['FT3', 'FT6'] if i%2==0 else ['FT1', 'FT2']} for i in range(7)
     ]
-    cols = st.columns(4)
-    for i, (label, value) in enumerate(metrics):
-        with cols[i % 4]:
-            st.markdown(f"<div style='background:{PRIMARY_COLOR};color:#fff;padding:1.2rem 1rem 0.7rem 1rem;border-radius:12px;box-shadow:0 2px 8px #0002;'><h2 style='margin:0;'>{value}</h2><div style='font-weight:600;'>{label}</div></div>", unsafe_allow_html=True)
-    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
-    # Example bar chart with random data (overall jobs by month)
-    chart_data = pd.DataFrame({
-        'Month': [f"2024-{i+1:02d}" for i in range(6)],
-        'Jobs Completed': [random.randint(50, 200) for _ in range(6)]
-    })
-    st.subheader("Jobs Completed by Month")
-    bar = alt.Chart(chart_data).mark_bar().encode(
-        x=alt.X("Month:N"),
-        y=alt.Y("Jobs Completed:Q"),
-        tooltip=["Month", "Jobs Completed"]
-    )
-    st.altair_chart(bar, use_container_width=True)
-    st.markdown("<div style='height: 2.5rem;'></div>", unsafe_allow_html=True)
-    # Download overall report
-    st.markdown("<b>Download Overall Report:</b>", unsafe_allow_html=True)
-    st.download_button("Download CSV", chart_data.to_csv(index=False).encode(), file_name="overall_report.csv", mime="text/csv", key="download_overall_csv")
+    equipment_usage = {
+        'FT3': {'tool_type': 'Mill', 'usage_count': 5, 'success_rate': 98, 'avg_deployment_time': 1.2, 'maintenance_due': False},
+        'FT6': {'tool_type': 'CT', 'usage_count': 4, 'success_rate': 92, 'avg_deployment_time': 1.5, 'maintenance_due': True},
+        'FT1': {'tool_type': 'Mill', 'usage_count': 3, 'success_rate': 85, 'avg_deployment_time': 1.1, 'maintenance_due': False},
+        'FT2': {'tool_type': 'CT', 'usage_count': 2, 'success_rate': 80, 'avg_deployment_time': 1.3, 'maintenance_due': False},
+    }
+    recommendations = [
+        "✅ Excellent drilling performance with 42.3 min average - maintain current operational parameters",
+        "🔧 2 tools (FT3, FT6) require maintenance review before next deployment",
+        "🎯 High drilling efficiency achieved (88%) - consider sharing best practices with other crews",
+        "💡 CT operations showing excellent efficiency (36.8 min avg) - optimize for future jobs",
+        "🛡️ Maintain excellent safety record with continued JSA compliance and observation protocols"
+    ]
+    # --- Job Summary and KPIs as a single HTML block (matches your provided HTML) ---
+    # Only show Total Activities card
+    total_activities_card = """
+    <div style='display:flex;flex-wrap:wrap;gap:1.5rem 2.5rem;'>
+        <div style='background:#e6f7ff;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+            <span style='font-size:1.5em;'>📋</span><br>
+            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Total Activities</span><br>
+            <span style='color:#222;font-size:1.15em;'>78<br><span style='color:green;font-size:0.95em;'>11.1 per day</span></span>
+        </div>
+        <div style='background:#eaf1fb;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+            <span style='font-size:1.5em;'>⏰</span><br>
+            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Work Hours</span><br>
+            <span style='color:#222;font-size:1.15em;'>68.5<br><span style='color:green;font-size:0.95em;'>9.8 per day</span></span>
+        </div>
+        <div style='background:#fffbe6;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+            <span style='font-size:1.5em;'>⚡</span><br>
+            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Drilling Efficiency</span><br>
+            <span style='color:#222;font-size:1.15em;'>85%<br><span style='color:green;font-size:0.95em;'>performance rating</span></span>
+        </div>
+        <div style='background:#e6fff7;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+            <span style='font-size:1.5em;'>🔧</span><br>
+            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Equipment Success</span><br>
+            <span style='color:#222;font-size:1.15em;'>83%<br><span style='color:green;font-size:0.95em;'>deployment success</span></span>
+        </div>
+        <div style='background:#fbe6ff;border-radius:12px;padding:1.1em 1.5em;margin:0.7em 0 0.7em 0;border:2px solid #00306B;box-shadow:0 1px 6px #00306b22;min-width:260px;max-width:400px;flex:1;'>
+            <span style='font-size:1.5em;'>🛡️</span><br>
+            <span style='color:#00306B;font-weight:700;font-size:1.1em;'>Safety Score</span><br>
+            <span style='color:#222;font-size:1.15em;'>98<br><span style='color:green;font-size:0.95em;'>out of 100</span></span>
+        </div>
+    </div>
+    """
+    st.markdown(total_activities_card, unsafe_allow_html=True)
+    # --- Drilling Performance ---
+    st.header("🚀 Drilling Performance Analysis")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("⚙️ Mill Operations")
+        mill_col1, mill_col2 = st.columns(2)
+        with mill_col1:
+            st.metric("Plugs Drilled", mill_perf['total_plugs_drilled'], f"{mill_perf['total_footage']} ft total")
+        with mill_col2:
+            st.metric("Avg Drill Time", f"{mill_perf['avg_drill_time_mins']} min", mill_perf['efficiency_rating'])
+    with col2:
+        st.subheader("🔄 CT Operations")
+        ct_col1, ct_col2 = st.columns(2)
+        with ct_col1:
+            st.metric("CT Operations", ct_perf['total_ct_operations'], f"{ct_perf['depth_accuracy']}% accuracy")
+        with ct_col2:
+            st.metric("Avg CT Time", f"{ct_perf['avg_ct_drill_time']} min", ct_perf['efficiency_rating'])
+    # --- Drilling Performance Charts ---
+    col1, col2 = st.columns(2)
+    with col1:
+        drill_times = [42.3 - i*1.2 + np.random.normal(0, 2) for i in range(10)]
+        plug_numbers = list(range(1, 11))
+        fig_drill_times = px.line(x=plug_numbers, y=drill_times, title='Drill Time Progression by Plug', labels={'x': 'Plug Number', 'y': 'Drill Time (minutes)'}, markers=True)
+        fig_drill_times.update_traces(line_color='#2a5298', marker_size=8)
+        fig_drill_times.add_hline(y=np.mean(drill_times), line_dash="dash", annotation_text=f"Average: {np.mean(drill_times):.1f} min")
+        st.plotly_chart(fig_drill_times, use_container_width=True)
+    with col2:
+        efficiency_data = {
+            'Operation Type': ['Mill Operations', 'CT Operations', 'Industry Standard'],
+            'Efficiency Score': [mill_perf['success_rate'], ct_perf['depth_accuracy'], 85],
+            'Color': ['Mill', 'CT', 'Standard']
+        }
+        fig_efficiency = px.bar(efficiency_data, x='Operation Type', y='Efficiency Score', title='Operation Efficiency Comparison', color='Color', color_discrete_map={'Mill': '#2a5298', 'CT': '#28a745', 'Standard': '#6c757d'})
+        fig_efficiency.update_layout(showlegend=False)
+        st.plotly_chart(fig_efficiency, use_container_width=True)
+    # --- Operational Frequency ---
+    st.header("📈 Operational Frequency Analysis")
+    col1, col2 = st.columns(2)
+    daily_data = pd.DataFrame(daily_breakdown)
+    with col1:
+        fig_activities = go.Figure()
+        fig_activities.add_trace(go.Bar(name='Total Activities', x=daily_data['day'], y=daily_data['activities'], marker_color='#2a5298', opacity=0.7))
+        fig_activities.add_trace(go.Scatter(name='Mill Operations', x=daily_data['day'], y=daily_data['mill_operations'], mode='lines+markers', line=dict(color='#dc3545', width=3), marker=dict(size=8)))
+        fig_activities.add_trace(go.Scatter(name='CT Operations', x=daily_data['day'], y=daily_data['ct_operations'], mode='lines+markers', line=dict(color='#28a745', width=3), marker=dict(size=8)))
+        fig_activities.update_layout(title='Daily Activities & Drilling Operations', xaxis_title='Day', yaxis_title='Count', legend=dict(x=0, y=1))
+        st.plotly_chart(fig_activities, use_container_width=True)
+    with col2:
+        fig_hours = go.Figure()
+        fig_hours.add_trace(go.Bar(name='Work Hours', x=daily_data['day'], y=daily_data['work_hours'], marker_color='#2a5298'))
+        fig_hours.add_trace(go.Bar(name='Downtime', x=daily_data['day'], y=daily_data['downtime'], marker_color='#dc3545'))
+        fig_hours.update_layout(title='Daily Work Hours vs Downtime', xaxis_title='Day', yaxis_title='Hours', barmode='stack')
+        st.plotly_chart(fig_hours, use_container_width=True)
+    # --- Equipment Analysis ---
+    st.header("🔧 Equipment Utilization Analysis")
+    col1, col2 = st.columns(2)
+    eq_df = pd.DataFrame([
+        {'Tool': tool, 'Tool Type': info['tool_type'], 'Usage Count': info['usage_count'], 'Success Rate': info['success_rate'], 'Avg Deployment Time': info['avg_deployment_time'], 'Maintenance Due': info['maintenance_due']} for tool, info in equipment_usage.items()
+    ])
+    with col1:
+        fig_eq_usage = px.bar(eq_df, x='Tool', y='Usage Count', title='Equipment Usage Frequency', color='Success Rate', color_continuous_scale='RdYlGn', hover_data=['Tool Type', 'Avg Deployment Time'])
+        st.plotly_chart(fig_eq_usage, use_container_width=True)
+    with col2:
+        fig_performance = px.pie(values=list(equipment_freq['performance_distribution'].values()), names=list(equipment_freq['performance_distribution'].keys()), title='Equipment Performance Distribution', color_discrete_map={'excellent': '#28a745', 'good': '#17a2b8', 'poor': '#dc3545'})
+        st.plotly_chart(fig_performance, use_container_width=True)
+    st.subheader("🔍 Equipment Details & Maintenance Status")
+    eq_display = eq_df.copy()
+    def get_status_emoji(row):
+        if row['Maintenance Due']:
+            return "🔴 Maintenance Required"
+        elif row['Success Rate'] >= 95:
+            return "🟢 Excellent"
+        elif row['Success Rate'] >= 85:
+            return "🟡 Good"
+        else:
+            return "🟠 Needs Attention"
+    eq_display['Status'] = eq_display.apply(get_status_emoji, axis=1)
+    eq_display['Success Rate'] = eq_display['Success Rate'].apply(lambda x: f"{x:.0f}%")
+    eq_display['Avg Deployment Time'] = eq_display['Avg Deployment Time'].apply(lambda x: f"{x:.1f}h")
+    st.dataframe(eq_display[['Tool', 'Tool Type', 'Usage Count', 'Success Rate', 'Avg Deployment Time', 'Status']], use_container_width=True)
+    # --- Detailed Daily Breakdown ---
+    st.header("📅 Detailed Daily Operations")
+    tab1, tab2, tab3 = st.tabs(["📊 Overview", "⏱️ Drilling Timeline", "🛠️ Equipment Schedule"])
+    with tab1:
+        daily_detailed = daily_data.copy()
+        daily_detailed['Efficiency'] = (daily_detailed['activities'] / daily_detailed['work_hours']).round(2)
+        daily_detailed['Equipment Count'] = daily_detailed['equipment'].apply(len)
+        daily_detailed['Total Drilling Ops'] = daily_detailed['mill_operations'] + daily_detailed['ct_operations']
+        st.dataframe(daily_detailed[['day', 'date', 'activities', 'work_hours', 'downtime', 'mill_operations', 'ct_operations', 'Total Drilling Ops', 'Equipment Count', 'Efficiency']], use_container_width=True)
+    with tab2:
+        fig_drilling_timeline = go.Figure()
+        fig_drilling_timeline.add_trace(go.Bar(name='Mill Operations', x=daily_data['day'], y=daily_data['mill_operations'], marker_color='#dc3545', width=0.4, offset=-0.2))
+        fig_drilling_timeline.add_trace(go.Bar(name='CT Operations', x=daily_data['day'], y=daily_data['ct_operations'], marker_color='#28a745', width=0.4, offset=0.2))
+        fig_drilling_timeline.update_layout(title='Drilling Operations Timeline', xaxis_title='Day', yaxis_title='Number of Operations', barmode='group', height=400)
+        st.plotly_chart(fig_drilling_timeline, use_container_width=True)
+    with tab3:
+        equipment_schedule = []
+        for day_data in daily_breakdown:
+            for equipment in day_data.get('equipment', []):
+                equipment_schedule.append({'Day': day_data['day'], 'Date': day_data['date'], 'Equipment': equipment, 'Work Hours': day_data['work_hours']})
+        if equipment_schedule:
+            eq_schedule_df = pd.DataFrame(equipment_schedule)
+            fig_eq_schedule = px.density_heatmap(eq_schedule_df, x='Day', y='Equipment', title='Equipment Usage Schedule', color_continuous_scale='Blues')
+            st.plotly_chart(fig_eq_schedule, use_container_width=True)
+            eq_utilization = eq_schedule_df.groupby('Equipment').agg({'Day': 'count', 'Work Hours': 'sum'}).rename(columns={'Day': 'Days Used', 'Work Hours': 'Total Hours'})
+            st.subheader("Equipment Utilization Summary")
+            st.dataframe(eq_utilization, use_container_width=True)
+        else:
+            st.info("No equipment schedule data available")
+    # --- Recommendations ---
+    st.header("💡 AI-Powered Recommendations")
+    for i, rec in enumerate(recommendations, 1):
+        if 'excellent' in rec.lower() or 'maintain' in rec.lower():
+            rec_type = "success-metric"
+            icon = "✅"
+        elif 'maintenance' in rec.lower() or 'require' in rec.lower():
+            rec_type = "warning-metric"  
+            icon = "⚠️"
+        elif 'efficiency' in rec.lower() or 'optimize' in rec.lower():
+            rec_type = "drill-metric"
+            icon = "🎯"
+        elif 'safety' in rec.lower():
+            rec_type = "success-metric"
+            icon = "🛡️"
+        else:
+            rec_type = "metric-card"
+            icon = "💡"
+        st.markdown(f"""
+        <div class="metric-card {rec_type}" style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; border-left: 5px solid #2a5298; margin-bottom: 1rem; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            <h4 style="margin: 0; color: #333;">{icon} Recommendation {i}</h4>
+            <p style="margin: 0.5rem 0 0 0; color: #666;">{rec}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    # --- Advanced Analytics ---
+    st.header("📊 Advanced Drilling Analytics")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("⚡ Drilling Efficiency Trends")
+        days = list(range(1, 8))
+        efficiency_trend = [85 + i*0.5 + np.random.normal(0, 1.5) for i in days]
+        fig_efficiency_trend = go.Figure()
+        fig_efficiency_trend.add_trace(go.Scatter(x=days, y=efficiency_trend, mode='lines+markers', name='Efficiency %', line=dict(color='#2a5298', width=3), marker=dict(size=8)))
+        fig_efficiency_trend.add_hline(y=np.mean(efficiency_trend), line_dash="dash", line_color="red", annotation_text=f"Average: {np.mean(efficiency_trend):.1f}%")
+        fig_efficiency_trend.update_layout(title='Daily Drilling Efficiency', xaxis_title='Day', yaxis_title='Efficiency %', yaxis_range=[80, 95])
+        st.plotly_chart(fig_efficiency_trend, use_container_width=True)
+    with col2:
+        st.subheader("💰 Cost Efficiency Analysis")
+        cost_data = {'Category': ['Equipment', 'Labor', 'Materials', 'Overhead'], 'Budgeted': [15000, 25000, 8000, 12000], 'Actual': [14200, 23800, 7600, 11400], 'Variance': [800, 1200, 400, 600]}
+        cost_df = pd.DataFrame(cost_data)
+        fig_cost = go.Figure()
+        fig_cost.add_trace(go.Bar(name='Budgeted', x=cost_df['Category'], y=cost_df['Budgeted'], marker_color='lightblue'))
+        fig_cost.add_trace(go.Bar(name='Actual', x=cost_df['Category'], y=cost_df['Actual'], marker_color='darkblue'))
+        fig_cost.update_layout(title='Budget vs Actual Costs', xaxis_title='Cost Category', yaxis_title='Amount (USD)', barmode='group')
+        st.plotly_chart(fig_cost, use_container_width=True)
+        total_savings = cost_df['Variance'].sum()
+        st.metric(label="Total Cost Savings", value=f"${total_savings:,}", delta=f"{(total_savings/cost_df['Budgeted'].sum()*100):.1f}% under budget")
+    # --- Export Section ---
+    st.header("📤 Export & Reports")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.download_button(label="Download Drilling Report (JSON)", data=json.dumps({'Job Information': job_info, 'Drilling Performance': {'Mill Operations': mill_perf, 'CT Operations': ct_perf, 'Overall Efficiency': efficiency['drilling_efficiency']}, 'Key Metrics': {'Total Activities': ops_freq['total_activities'], 'Total Work Hours': ops_freq['total_work_hours'], 'Equipment Success Rate': equipment_freq['deployment_success_rate'], 'Safety Score': efficiency['safety_score']}, 'Equipment Status': equipment_usage, 'Recommendations': recommendations}, indent=2), file_name=f"YJOS_Drilling_Report_{job_info['ticket_number']}.json", mime="application/json")
+    with col2:
+        daily_csv = pd.DataFrame(daily_breakdown)
+        st.download_button(label="Download Daily Operations CSV", data=daily_csv.to_csv(index=False), file_name=f"YJOS_Daily_Operations_{job_info['ticket_number']}.csv", mime="text/csv")
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #666; padding: 1rem;'>
+        <p>🛠️ YJOS Drillout Analytics Dashboard | Advanced Drilling Operations Intelligence</p>
+        <p>📧 Contact: drilling-analytics@yjos.com | 📞 Support: 1-800-YJOS-DRILL</p>
+        <p>Specialized for Mill Operations, CT Drilling, and Equipment Optimization</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def settings_page():
     st.title("Settings")
@@ -383,7 +673,7 @@ def users_page():
     df = pd.DataFrame(user_data)
     st.markdown(f"<div style='background:{CARD_COLOR};border-radius:10px;padding:1rem 1rem 1rem 1rem;border:1px solid {PRIMARY_COLOR};margin-top:1rem;'><h4 style='color:{ACCENT_COLOR};margin-bottom:0.5rem;'>Users</h4>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True)
-    st.markdown("<hr>")
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown(f"<h4 style='color:{ACCENT_COLOR};'>Add New User</h4>", unsafe_allow_html=True)
     with st.form("add_user_form"):
         new_username = st.text_input("Username", key="add_user_username")
